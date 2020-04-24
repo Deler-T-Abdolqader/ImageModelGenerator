@@ -22,7 +22,9 @@ namespace ImageModelGenerator
                 FontPath = @"d:\ML\fonts",
                 FontSize = 24,
                 BrushColor = Brushes.Black,
-                MaxThreadLimit = 20
+                MaxThreadLimit = 20,
+                SavePattern = @"{0}_{2}",// => Destination path/Label_Index.png
+                GenerateTsvFile = true
             }).BuildModels();
             Console.ReadLine();
         }

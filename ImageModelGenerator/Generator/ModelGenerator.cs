@@ -2,6 +2,7 @@
 using ImageModelGenerator.Models;
 using System;
 using System.Collections.Generic;
+using System.Data.SqlTypes;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -115,13 +116,13 @@ namespace ImageModelGenerator.Generator
                 _models = new List<GeneratedModel>();
                 Parallel.ForEach(_labels, parallelOptions: new ParallelOptions { MaxDegreeOfParallelism = 1 }, (currentLabel) =>
                  {
-                     foreach (var font in _fonts)
+                     foreach (var item in _fonts.Select((font, index) => (font, index)))
                      {
                          SizeF size;
                          Image fakeImage = new Bitmap(1, 1);
                          using (Graphics g = Graphics.FromImage(fakeImage))
                          {
-                             size = g.MeasureString(currentLabel, new Font(font, _options.FontSize));
+                             size = g.MeasureString(currentLabel, new Font(item.font, _options.FontSize));
                              g.Flush();
                          }
                          Bitmap bmp = new Bitmap(Convert.ToInt32(Math.Ceiling(size.Width)), Convert.ToInt32(Math.Ceiling(size.Height)));
@@ -131,12 +132,12 @@ namespace ImageModelGenerator.Generator
                              g.SmoothingMode = SmoothingMode.HighQuality;
                              g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                              g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                             g.DrawString(currentLabel, new Font(font, _options.FontSize), _options.BrushColor, new PointF(0, 0));
+                             g.DrawString(currentLabel, new Font(item.font, _options.FontSize), _options.BrushColor, new PointF(0, 0));
 
                              g.Flush();
                          }
 
-                         _models.Add(new GeneratedModel { Label = currentLabel, Font = font, Model = bmp });
+                         _models.Add(new GeneratedModel { Label = currentLabel, Font = item.font, Model = bmp, Index = item.index });
                          clearLastLine();
                          console($"Generated models: {++generatedModels} from {allModels},  Execution time: {stopwatch.ElapsedTime()}");
                      }
@@ -159,15 +160,33 @@ namespace ImageModelGenerator.Generator
                 stopwatch.Start();
                 var savedModels = 0;
                 var allModels = _models.Count;
+                var tsvList = new List<string>();
                 Parallel.ForEach(_models, parallelOptions: new ParallelOptions { MaxDegreeOfParallelism = _options.MaxThreadLimit }, (currentModel) =>
                 {
                     var model = (GeneratedModel)currentModel;
-                    var path = generateModelPath(_options.DestinationPath, model.Label);
-                    Directory.CreateDirectory(path);
-                    path = generateModelPath(path, $"{model.Font}{".png"}");
+                    var pathPattern = string.Format($"{_options.SavePattern}.png", model.Label, model.Font, model.Index);
+                    var path = generateModelPath(_options.DestinationPath, pathPattern);
+                    Directory.CreateDirectory(Path.GetDirectoryName(path));
                     model.Model.Save(path, ImageFormat.Png);
+                    if (_options.GenerateTsvFile)
+                    {
+                        tsvList.Add($"{pathPattern}    {model.Label}");
+                    }
                     savedModels++;
                 });
+                if (_options.GenerateTsvFile)
+                {
+                    var sw = new StreamWriter(generateModelPath(_options.DestinationPath, "tags.tsv"), false);
+                    Parallel.ForEach(tsvList, parallelOptions: new ParallelOptions { MaxDegreeOfParallelism = _options.MaxThreadLimit }, (currentLine) =>
+                    {
+                        lock (sw)
+                        {
+                            sw.WriteLine(currentLine);
+                        }
+                    });
+                    sw.Close();
+                    sw.Dispose();
+                }
                 console($"Saved models: {allModels},  Execution time: {stopwatch.ElapsedTime()}", "");
                 Process.Start(_options.DestinationPath);
             }

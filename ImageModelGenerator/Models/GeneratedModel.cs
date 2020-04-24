@@ -11,6 +11,7 @@ namespace ImageModelGenerator.Models
     {
         public string Label { get; set; }
         public string Font { get; set; }
+        public int Index { get; set; }
         public Bitmap Model { get; set; }
     }
 }
