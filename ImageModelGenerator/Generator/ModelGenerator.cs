@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -13,11 +15,13 @@ namespace ImageModelGenerator.Generator
 {
     public class ModelGenerator : IInitial, IBuild
     {
-        private List<string> _labels { get; set; }
         private List<string> _fonts { get; set; }
-        private InitialOptions _options;
+        private List<string> _labels { get; set; }
 
-        IBuild IInitial.InitialRequirements(InitialOptions options)
+        private List<GeneratedModel> _models { get; set; }
+        private Options _options;
+
+        IBuild IInitial.Initialization(Options options)
         {
             _options = options;
             readFonts();
@@ -26,7 +30,8 @@ namespace ImageModelGenerator.Generator
         }
         void IBuild.BuildModels()
         {
-
+            generateModels();
+            saveModels();
         }
 
         #region Initials
@@ -53,7 +58,7 @@ namespace ImageModelGenerator.Generator
                     _fonts.AddRange(readFileLines(_options.FontPath));
                 }
                 stopwatch.Stop();
-                console($"Found fonts: {_fonts.Count},  Read time: {stopwatch.ElapsedTime()}", "");
+                console($"Found fonts: {_fonts.Count},  Execution time: {stopwatch.ElapsedTime()}", "");
             }
             catch (Exception ex)
             {
@@ -83,7 +88,7 @@ namespace ImageModelGenerator.Generator
                     _labels.AddRange(readFileLines(_options.SourceDataPath));
                 }
                 stopwatch.Stop();
-                console($"Found labels: {_labels.Count},  Read time: {stopwatch.ElapsedTime()}", "");
+                console($"Found labels: {_labels.Count},  Execution time: {stopwatch.ElapsedTime()}", "");
             }
             catch (Exception ex)
             {
@@ -96,6 +101,84 @@ namespace ImageModelGenerator.Generator
         }
         #endregion
 
+        #region Build
+        private void generateModels()
+        {
+            try
+            {
+                console("Generating models...");
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                var generatedModels = 0;
+                var allModels = _fonts.Count * _labels.Count;
+                console($"Generated models: {generatedModels} from {allModels},  Execution time: {stopwatch.ElapsedTime()}");
+                _models = new List<GeneratedModel>();
+                Parallel.ForEach(_labels, parallelOptions: new ParallelOptions { MaxDegreeOfParallelism = 1 }, (currentLabel) =>
+                 {
+                     foreach (var font in _fonts)
+                     {
+                         SizeF size;
+                         Image fakeImage = new Bitmap(1, 1);
+                         using (Graphics g = Graphics.FromImage(fakeImage))
+                         {
+                             size = g.MeasureString(currentLabel, new Font(font, _options.FontSize));
+                             g.Flush();
+                         }
+                         Bitmap bmp = new Bitmap(Convert.ToInt32(Math.Ceiling(size.Width)), Convert.ToInt32(Math.Ceiling(size.Height)));
+
+                         using (Graphics g = Graphics.FromImage(bmp))
+                         {
+                             g.SmoothingMode = SmoothingMode.HighQuality;
+                             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                             g.DrawString(currentLabel, new Font(font, _options.FontSize), _options.BrushColor, new PointF(0, 0));
+
+                             g.Flush();
+                         }
+
+                         _models.Add(new GeneratedModel { Label = currentLabel, Font = font, Model = bmp });
+                         clearLastLine();
+                         console($"Generated models: {++generatedModels} from {allModels},  Execution time: {stopwatch.ElapsedTime()}");
+                     }
+                 });
+                stopwatch.Stop();
+                clearLastLine();
+                console($"Generated models: {generatedModels},  Execution time: {stopwatch.ElapsedTime()}", "");
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("An error occurred while generating the models list");
+            }
+        }
+        private void saveModels()
+        {
+            try
+            {
+                console("Saving models...");
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                var savedModels = 0;
+                var allModels = _models.Count;
+                Parallel.ForEach(_models, parallelOptions: new ParallelOptions { MaxDegreeOfParallelism = _options.MaxThreadLimit }, (currentModel) =>
+                {
+                    var model = (GeneratedModel)currentModel;
+                    var path = generateModelPath(_options.DestinationPath, model.Label);
+                    Directory.CreateDirectory(path);
+                    path = generateModelPath(path, $"{model.Font}{".png"}");
+                    model.Model.Save(path, ImageFormat.Png);
+                    savedModels++;
+                });
+                console($"Saved models: {allModels},  Execution time: {stopwatch.ElapsedTime()}", "");
+                Process.Start(_options.DestinationPath);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("An error occurred while saving the models list");
+            }
+        }
+
+        #endregion
+
         #region Generals
         private void console(params string[] messages)
         {
@@ -103,6 +186,18 @@ namespace ImageModelGenerator.Generator
             {
                 Console.WriteLine(message);
             }
+        }
+
+        private void clearLastLine()
+        {
+            Console.CursorTop = Console.CursorTop - 1;
+            Console.Write(new string(' ', Console.BufferWidth));
+            Console.CursorTop = Console.CursorTop - 1;
+        }
+
+        private string generateModelPath(params string[] paths)
+        {
+            return Path.Combine(paths);
         }
         #endregion
     }

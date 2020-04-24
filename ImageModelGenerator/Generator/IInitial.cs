@@ -16,6 +16,6 @@ namespace ImageModelGenerator.Generator
         /// options variable contains generator prerequisites
         /// </param>
         /// <returns>Return a Build interface for start building models</returns>
-        IBuild InitialRequirements(InitialOptions options);
+        IBuild Initialization(Options options);
     }
 }

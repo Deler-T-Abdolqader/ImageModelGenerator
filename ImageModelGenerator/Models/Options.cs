@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace ImageModelGenerator.Models
 {
-    public class InitialOptions
+    public class Options
     {
         /// <summary>
         /// SourceDataPath is data file path or directory path of data files
@@ -21,8 +21,8 @@ namespace ImageModelGenerator.Models
         /// FontPath is font file path or directory of fonts 
         /// </summary>
         public string FontPath { get; set; }
-        public int FontSize { get; set; } = 14;
-        public Color FontColor { get; set; } = Color.Black;
+        public int FontSize { get; set; } = 24;
+        public Brush BrushColor { get; set; } = Brushes.Black;
         public int MaxThreadLimit { get; set; } = 20;
     }
 }

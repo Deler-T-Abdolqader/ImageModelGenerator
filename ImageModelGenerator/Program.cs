@@ -15,13 +15,13 @@ namespace ImageModelGenerator
         {
             AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionTrapper;
             IInitial modelGenerator = new ModelGenerator();
-            modelGenerator.InitialRequirements(new InitialOptions
+            modelGenerator.Initialization(new Options
             {
-                SourceDataPath = "d:/ML/source",
-                DestinationPath = "d:/ML/destination",
-                FontPath = "d:/ML/fonts",
-                FontSize = 14,
-                FontColor = Color.Black,
+                SourceDataPath = @"d:\ML\source",
+                DestinationPath = @"d:\ML\destination",
+                FontPath = @"d:\ML\fonts",
+                FontSize = 24,
+                BrushColor = Brushes.Black,
                 MaxThreadLimit = 20
             }).BuildModels();
             Console.ReadLine();
